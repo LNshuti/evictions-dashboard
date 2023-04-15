@@ -8,44 +8,71 @@
 #
 
 library(shiny)
-
-# Define UI for application that draws a histogram
+library(ggplot2)
+library(dplyr)
+library(leaflet)
+library(shinythemes)
+# Define UI for the application
 ui <- fluidPage(
-
-    # Application title
-    titlePanel("Evictions Dashboard"),
-
-    # Sidebar with a slider input for number of bins 
-    sidebarLayout(
-        sidebarPanel(
-            sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-           plotOutput("distPlot")
-        )
+  theme = shinytheme("cerulean"),
+  titlePanel("Evictions Dashboard"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("state", "State:",
+                  choices = unique(evictions_data$state)),
+      selectInput("county", "County:",
+                  choices = unique(evictions_data$county))
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Evictions Histogram", plotOutput("distPlot")),
+        tabPanel("Median Income Map", leafletOutput("mapPlot"))
+      )
     )
+  )
 )
 
-# Define server logic required to draw a histogram
-server <- function(input, output) {
-
-    output$distPlot <- renderPlot({
-        # generate bins based on input$bins from ui.R
-        x    <- faithful[, 2]
-        bins <- seq(min(x), max(x), length.out = input$bins + 1)
-
-        # draw the histogram with the specified number of bins
-        hist(x, breaks = bins, col = 'darkgray', border = 'white',
-             xlab = 'Waiting time to next eruption (in mins)',
-             main = 'Histogram of waiting times')
-    })
+# Define server logic
+server <- function(input, output, session) {
+  
+  # Filter data based on state and county selections
+  filtered_data <- reactive({
+    evictions_data %>%
+      filter(state == input$state, county == input$county)
+  })
+  
+  # Update county options based on the selected state
+  observeEvent(input$state, {
+    updateSelectInput(session, "county", 
+                      choices = unique(evictions_data$county[evictions_data$state == input$state]))
+  })
+  
+  # Render the histogram of evictions
+  output$distPlot <- renderPlot({
+    ggplot(filtered_data(), aes(x = evictions)) +
+      geom_histogram(bins = 30, fill = "darkgray", color = "white") +
+      labs(title = "Histogram of Evictions",
+           x = "Evictions",
+           y = "Frequency") +
+      theme_minimal()
+  })
+  
+  # Render the median income map
+  output$mapPlot <- renderLeaflet({
+    leaflet() %>%
+      addTiles() %>%
+      addCircles(lng = ~longitude, lat = ~latitude, data = filtered_data(),
+                 radius = ~median_income/100, 
+                 fillColor = "blue", stroke = FALSE, fillOpacity = 0.4) %>%
+      addLegend("bottomright", colors = "blue", 
+                labels = "Median Income by Zipcode", 
+                opacity = 0.4, title = "Median Income")
+  })
 }
 
-# Run the application 
+# Load the latest evictions data (replace with the appropriate data source)
+evictions_data <-
+  read.csv("/data/county_court-issued_2000_2018.csv")
+
+# Run the Shiny application
 shinyApp(ui = ui, server = server)
