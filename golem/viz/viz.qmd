@@ -1,0 +1,47 @@
+---
+title: "viz.qmd"
+format: html
+editor: visual
+---
+
+# Synopsis
+This file tracks the works related to the visualizations for the golem app. Renv
+is not working well with r2u for binary on Ubuntu.  
+
+```{r}
+library(here)
+library(data.table)
+list.files(here("data"))
+```
+
+```{r}
+d <- fread(here("data", "county_court-issued_2000_2018.csv"))
+dd <- readxl::read_xlsx(here("data", "county_proprietary_2000_2018_codebook.xlsx"))
+```
+
+# Chloropleth
+```{r}
+library(plotly)
+library(rjson)
+```
+
+```{r}
+viz_df <- d[year == 2000, ]
+viz_df[, fips := as.character(fips_county)]
+viz_df
+fig <- plot_ly() |> 
+  add_trace(
+    type = "choropleth",
+    geojson = counties,
+    locations = viz_df$fips,
+    z = viz_df$filings_observed,
+    colorscale = "Viridis",
+    zmin = 0,
+    zmax = 12,
+    marker = list(line = list(width = 0))
+  ) |> 
+  colorbar(title = "filings_observed") |>
+  layout(geo = g)
+fig
+```
+
