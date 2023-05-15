@@ -17,4 +17,4 @@ This should include information on how long people stayed in their homes before 
 Each page should include elements that help the user navigate the dashboard, such as the page titles and filter options that allow users to customize their view of the data.
 
 #### Tableau Dashboard 
-[Tableau](https://prod-useast-b.online.tableau.com/t/evictionstn/views/TN-Quarterly-Evictions/EvictionsDashboard)
+[Tableau Map Tennessee](https://prod-useast-b.online.tableau.com/t/evictionstn/views/TN-Quarterly-Evictions/EvictionsDashboard)
