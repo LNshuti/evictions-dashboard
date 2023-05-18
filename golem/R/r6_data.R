@@ -29,7 +29,7 @@ CountyData <- R6::R6Class(
       if (is.null(self$cache[[as.character(self$year)]])) {
         # message("Caching")
         self$cache[[as.character(self$year)]] <-
-          copy(self$raw_dt[year == self$year,])
+          copy(self$raw_dt[year == self$year, ])
       }
       invisible(self)
     },
@@ -60,7 +60,7 @@ CountyGEO <- R6::R6Class(
       if (is.null(self$cache[[self$year]])) {
         self$cache[[self$year]] <-
           merge(self$raw_shp, dt, by.x = "id", by.y = "fips_char")
-      } 
+      }
       invisible(self)
     },
     get = function(dt) {
@@ -75,10 +75,11 @@ CountyGEO <- R6::R6Class(
     },
     set_pal <- function(cuts) {
       self$bins <- cuts
-      if(max(cuts) < max())
-      stopifnot(all(range(cuts)))
+      if (max(cuts) < max()) {
+        stopifnot(all(range(cuts)))
+      }
       self$pal <- leaflet::colorBin("YlOrRd", domain = self$viz_var, bins = self$bins)
-    }
+    },
     chloro = function(v, cuts, dt) {
       bins <- c(0, 10, 20, 50, 100, 200, 500, 1000, Inf)
       pal <- colorBin("YlOrRd", domain = d$renting_hh, bins = bins)

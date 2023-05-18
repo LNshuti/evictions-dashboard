@@ -1,24 +1,31 @@
 ---
 title: "viz.qmd"
 format: html
-editor: visual
+editor: source
 ---
 
 # Synopsis
 
-This file tracks the works related to the visualizations for the golem app. Renv is not working well with r2u for binary on Ubuntu.
+This file tracks the works related to the visualizations for the golem app. Renv 
+is not working well with r2u for binary on Ubuntu.
 
-The strategy is to combine sf and leaflet and R6 to make a simple dashboard that shows the Chloropleth for all states across time.
+The strategy is to combine sf and leaflet and R6 to make a simple dashboard that 
+shows the Chloropleth for all states across time.
 
-Features: Let you choose cut offs for binning the colors? This is because some counties have very high number of a numeric variable and letting automatic interpolation of color will make everything else washed out.
+Features: Let you choose cut offs for binning the colors? This is because some 
+counties have very high number of a numeric variable and letting automatic 
+interpolation of color will make everything else washed out.
 
 ```{r}
+library(stringr)
 library(here)
 library(data.table)
+library(fst)
 library(dplyr)
 library(leaflet)
+library(tidyr)
 library(sf)
-list.files(here("data"))
+# list.files(here("data"))
 ```
 
 ```{r}
@@ -30,10 +37,9 @@ dd <- readxl::read_xlsx(here("data", "county_proprietary_2000_2018_codebook.xlsx
 ```
 
 # Wrangling
-
--   Get the boundaries of counties as an sf object
--   Keep only the counties available in the eviction data
-
+## sf for counties
+{sf} is the newer standard compared to {sp}. We will need this to draw 
+chloropleths or any type of geospatial modeling (lat/long).
 ```{r}
 library(sf)
 # Download the counties geojson
@@ -45,35 +51,225 @@ library(sf)
 # saveRDS(counties_geojson,
 #         here::here("data", "temp", "counties_geojson_sp.rds"))
 
-counties_geojson <- readRDS(here::here("data", "temp", "counties_geojson_sp.rds"))
+# counties_geojson <- readRDS(here::here("data", "temp", "counties_geojson_sp.rds"))
 
 # Convert to sf object
-counties_geojson_shp <- st_as_sf(counties_geojson)
-st_write(counties_geojson_shp, here::here("data", "temp", "counties_geojson_sf.shp"))
+# counties_geojson_shp <- st_as_sf(counties_geojson)
+# st_write(counties_geojson_shp, here::here("data", "temp", "counties_geojson_sf.shp"))
 ```
 
+## counties pop by year
+* Downloaded here:
+  + https://seer.cancer.gov/popdata/download.html
+  + https://seer.cancer.gov/popdata/popdic.html
+* Age is provided as 19 categories or by single year. Since we don't have
+evictions by age group, we can just grab the 19 categories then aggregate up
+to the county level
+* from 1990 to 1989 race were only 3 categories
+* from 1990 to 2020 race were expanded. We can just get this file.
+
+### dict
+* Scrape
+```{r}
+## Grab the data
+# dict_raw <-
+#   rvest::read_html("https://seer.cancer.gov/popdata/popdic.html") |>
+#   rvest::html_table()
+# 
+
+# dict_clean <- dict_raw[[1]] |>
+#   janitor::clean_names() |> # Clean column name 
+#   mutate(across(.cols = where(is.character), .fns = str_trim)) # trim white space
+
+## Clean up the strings to create variable name and descriptions
+# t1 <- stringr::str_split_fixed(dict_clean$variable_name_and_values, "\r\n", n = 2)
+# t1[3, 2] <- str_extract(t1[3, 1], "(?<=State FIPS code).*")
+# t1[3, 1] <- str_extract(t1[3, 1], "State FIPS code")
+# dict_clean$variable <- janitor::make_clean_names(t1[, 1])
+
+## split by carriage return character
+# dict_clean$description <- lapply(str_trim(t1[, 2]), \(x) {str_squish(str_split_1(x, "\r\n"))})
+# dict_clean$variable_name_and_values <- NULL
+# dict_clean$dtype <-
+#   case_when(
+#     dict_clean$data_type == "numeric" ~ "n",
+#     dict_clean$data_type == "character" ~ "c",
+#     T ~ NA_character_
+#   )
+# 
+# saveRDS(dict_clean, here::here("data", "temp", "pop_data_dict.rds"))
+```
+
+Generate the lookup table to create decode values
+```{r}
+# dict_clean <- readRDS(here::here("data", "temp", "pop_data_dict.rds"))
+# dict_1990 <- dict_clean |> 
+#   select(variable, description) |> 
+#   unnest(description)
+# dict_1990$id <- seq_len(nrow(dict_1990))
+# 
+# dict_1990_clean <- dict_1990 |> 
+#   filter(!id %in% c(28:32, 37, 38, 44, 50, 53:59))
+# 
+# dict_1990_lookup <- dict_1990_clean |> 
+#   filter(str_detect(description, "=")) |> 
+#   separate(description, sep = " = ", into = c("code", "value")) |>
+#   select(-id) |> 
+#   nest(.by = variable)
+# 
+# rename_fns <- function(col, val) {
+#   if_else(col == "code", val, paste(val, "c", sep = "_"))
+# }
+# 
+# dict_1990_lookup <- mutate(
+#   dict_1990_lookup,
+#   data = purrr::map2(variable,
+#                      data,
+#                      \(x, y) {
+#                        if (x %in% c("race", "origin", "sex")) {
+#                          return(mutate(y, code = as.numeric(code)))
+#                        }
+#                        return(y)
+#                      })
+# )
+# 
+# dict_1990_lookup <- mutate(
+#   dict_1990_lookup,
+#   data = purrr::map2(
+#     variable, 
+#     data,
+#     \(x, y) {rename_with(y, rename_fns, val = x)}
+#     ) |> 
+#     purrr::set_names(variable)
+#   )
+```
+
+### 1990 - 2020
+* Extract and parse file
+```{r}
+# url1 <- "https://seer.cancer.gov/popdata/yr1990_2020.19ages/us.1990_2020.19ages.adjusted.txt.gz"
+# download.file(
+#   url1,
+#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.txt.gz")
+# )
+# R.utils::gunzip(
+#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.txt.gz"),
+#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.txt")
+# )
+# 
+# d_top <- readr::read_lines(
+#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.txt"),
+#   n_max = 2
+# )
+# 
+# d <- readr::read_fwf(
+#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.txt"),
+#   col_positions = readr::fwf_widths(
+#     widths = dict_clean$length,
+#     col_names = dict_clean$variable
+#     )
+#   )
+# 
+# d$population <- as.numeric(d$population)
+# 
+# fst::write_fst(
+#   d,
+#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.parsed.fst")
+# )
+```
+
+* Clean
+```{r}
+# d_top <- read_fst(
+#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.parsed.fst"),
+#   to = 10
+# )
+# 
+# selected_cols <- setdiff(
+#   names(d_top),
+#   c(
+#     "registry_geographic_definition_only",
+#     "state_postal_abbreviation"
+#   )
+# )
+# 
+# d <- read_fst(
+#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.parsed.fst"),
+#   columns = selected_cols,
+#   as.data.table = TRUE
+# )[
+#   year %in% 2000:2020,
+# ]
+```
+
+#### aggregate
+```{r}
+# agg_fns <- function(dt, var) {
+#   stopifnot(is.data.table(dt))
+#   dt[,
+#     list(pop = sum(population, na.rm = TRUE)),
+#     by = c("year", "state_fips_code", "county_fips_code", var)] |>
+#     merge(dict_1990_lookup$data[[var]], by = var)
+# }
+# 
+# cast_fns <- function(dt, var) {
+#   stopifnot(is.data.table(dt)) 
+#   dcast(
+#     dt, 
+#     as.formula(str_glue("year + state_fips_code + county_fips_code ~ {var}_c")),
+#     value.var = "pop"
+#   )
+# }
+# 
+# d_race <- agg_fns(d, "race")
+# d_race_wide <- cast_fns(d_race, "race") |> 
+#   janitor::clean_names()
+# 
+# d_origin <- agg_fns(d, "origin")
+# d_origin_wide <- cast_fns(d_origin, "origin") |> 
+#   janitor::clean_names()
+# 
+# d_clean <- d[
+#   ,
+#   list(total_pop = sum(population)),
+#   by = c("year", "state_fips_code", "county_fips_code")
+# ] |>
+#   merge(d_race_wide, by = c("year", "state_fips_code", "county_fips_code"))|> 
+#   merge(d_origin_wide, by = c("year", "state_fips_code", "county_fips_code"))
+# 
+# d_clean$id <- paste0(d_clean$state_fips_code, d_clean$county_fips_code)
+# 
+# write_fst(d_clean, here::here("data", "temp", "2000_2020_population_by_year_counties.fst"),
+#           compress = 100)
+```
+
+# Testing
 ```{r}
 counties_geojson_shp <- st_read(here::here("data", "temp", "counties_geojson_sf.shp"))
 bins <- c(0, 10, 20, 50, 100, 200, 500, 1000, Inf)
 pal <- colorBin("YlOrRd", domain = d$renting_hh, bins = bins)
 
-counties_geojson_shp |> 
-  inner_join(d[year == 2017, ], by = c("id" = "fips_char")) #|> 
-  leaflet() %>%
-  addTiles()  %>%
+counties_geojson_shp |>
+  inner_join(d[year == 2017, ], by = c("id" = "fips_char")) #|>
+
+leaflet() %>%
+  addTiles() %>%
   addPolygons(
-    stroke = FALSE, 
-    smoothFactor = 0.3, 
-    fillColor = ~pal(renting_hh),
+    stroke = FALSE,
+    smoothFactor = 0.3,
+    fillColor = ~ pal(renting_hh),
     fillOpacity = 0.7,
     label = ~renting_hh,
-  ) |> addLegend(pal = pal, values = ~renting_hh, opacity = 0.7, title = NULL,
-  position = "bottomright")
+  ) |>
+  addLegend(
+    pal = pal, values = ~renting_hh, opacity = 0.7, title = NULL,
+    position = "bottomright"
+  )
 ```
 
-# Testing
+
 ```{r}
-for(i in list.files(here::here("golem", "R"), full.names = TRUE)) {
+for (i in list.files(here::here("golem", "R"), full.names = TRUE)) {
   source(i)
 }
 
@@ -92,4 +288,3 @@ merge(counties_geojson_shp, d[year == 2017], by.y = "fips_char", by.x = "id")
 a <- list()
 a[[]]
 ```
-

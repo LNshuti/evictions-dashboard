@@ -37,13 +37,11 @@ Column {data-width=650 .tabset}
 ### Chart A
 
 ```{r}
-
 ```
 
 ### Chart B
 
 ```{r}
-
 ```
 
 Column {data-width=350}
@@ -52,12 +50,10 @@ Column {data-width=350}
 ### Chart C
 
 ```{r}
-
 ```
 
 ### Chart D
 
 ```{r}
-
 ```
 
