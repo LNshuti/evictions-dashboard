@@ -1,0 +1,92 @@
+---
+title: "viz.qmd"
+format: html
+editor: source
+---
+
+# Synopsis
+This file is the scratch pads for codes
+```{r}
+library(stringr)
+library(here)
+library(data.table)
+library(fst)
+library(dplyr)
+library(leaflet)
+library(tidyr)
+library(sf)
+# list.files(here("data"))
+```
+
+```{r}
+d <- read_fst(here::here("data", "temp", "county_court-issued_2000_2018.fst"),
+  as.data.table = TRUE
+)
+
+dd <- readxl::read_xlsx(here("data", "county_proprietary_2000_2018_codebook.xlsx"))
+
+# for (i in list.files(here::here("golem", "R"), full.names = TRUE)) { file.edit(i) }
+for (i in list.files(here::here("golem", "R"), full.names = TRUE)) { source(i) }
+
+counties_geojson_shp <- st_read(here::here("data", "temp", "counties_geojson_sf.shp"))
+```
+
+```{r}
+d[, unique(state_abbv)]
+d[list(2000), sort(unique(state_abbv)), nomatch = NULL]
+
+microbenchmark::microbenchmark(
+
+  d[list(2000, "AL", "Autauga County"), nomatch = NULL]
+)
+
+
+m <- hashmap(default = "kekwait")
+m[["b"]] <- 2
+
+m[["a"]]
+r2r::keys(m)
+r2r::
+microbenchmark::microbenchmark(m[["a"]], times = 1)
+microbenchmark::microbenchmark(m[["b"]], times = 1)
+```
+
+
+```{r}
+bins <- c(0, 10, 20, 50, 100, 200, 500, 1000, Inf)
+pal <- colorBin("YlOrRd", domain = d$renting_hh, bins = bins)
+
+counties_geojson_shp |>
+  inner_join(d[year == 2017, ], by = c("id" = "fips_char")) #|>
+
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(
+    stroke = FALSE,
+    smoothFactor = 0.3,
+    fillColor = ~ pal(renting_hh),
+    fillOpacity = 0.7,
+    label = ~renting_hh,
+  ) |>
+  addLegend(
+    pal = pal, values = ~renting_hh, opacity = 0.7, title = NULL,
+    position = "bottomright"
+  )
+```
+
+```{r}
+class(d_obj)
+d_obj <- CountyData$new(here::here("data", "temp", "county_court-issued_2000_2018.fst"))
+d_obj$get(2018)
+
+geo_obj <- CountyGEO$new(here::here("data", "temp", "counties_geojson_sf.shp"))
+geo_obj$get(d_obj$get(2017))
+geo_obj$set_joined_shp(d_obj$get(2019))
+geo_obj$joined_shp
+
+inner_join(as_tibble(d), counties_geojson_shp, by = c("fips_char" = "id"))
+merge(counties_geojson_shp, d[year == 2017], by.y = "fips_char", by.x = "id")
+
+a <- list()
+a[[]]
+```
