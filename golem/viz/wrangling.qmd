@@ -29,10 +29,12 @@ library(sf)
 
 # eviction data
 ```{r}
-d <- fread(here("data", "county_court-issued_2000_2018.csv")) |> 
+d <- fread(here("data", "county_court-issued_2000_2018.csv")) |>
   merge(data.table(state = state.name, state_abbv = state.abb))
-d[, id := stringr::str_pad(fips_county, width = 5, side = "right", pad = "0")]
+d[, fips := stringr::str_pad(fips_county, width = 5, side = "right", pad = "0")]
 set(d, j = c("state", "fips_state", "fips_county"), value = NULL)
+
+dd <- readxl::read_xlsx(here("data", "county_proprietary_2000_2018_codebook.xlsx"))
 
 d
 ```
@@ -41,15 +43,12 @@ Merge with population data
 ```{r}
 d_clean <- read_fst(
   here::here("data", "temp", "2000_2020_population_by_year_counties.fst"),
-  as.data.table = TRUE)
+  as.data.table = TRUE
+)
 
-d_viz <- merge(d, d_clean, by = c("year", "id"), all.x = TRUE)
+d_viz <- merge(d, d_clean, by = c("year", "fips"), all.x = TRUE)
 setkeyv(d_viz, c("year", "state_abbv", "county"))
-```
-
-```{r}
 fst::write_fst(d_viz, here::here("data", "temp", "county_court-issued_2000_2018.fst"))
-dd <- readxl::read_xlsx(here("data", "county_proprietary_2000_2018_codebook.xlsx"))
 ```
 
 # sf for counties
@@ -59,7 +58,7 @@ chloropleths or any type of geospatial modeling (lat/long).
 # Check if we have counties shape by year
 # devtools::install_github("UrbanInstitute/urbnmapr")
 # library(urbnmapr)
-# 
+#
 # counties_sf <- get_urbn_map("counties", sf = TRUE)
 # counties_sf
 ```
@@ -82,7 +81,7 @@ names(counties_geojson_shp)[1] <- "fips"
 
 # Only keep fips_county column
 st_write(
-  select(counties_geojson_shp , fips),
+  select(counties_geojson_shp, fips),
   here::here("data", "temp", "counties_geojson_sf.shp")
 )
 ```
@@ -130,46 +129,50 @@ to the county level
 
 Generate the lookup table to create decode values
 ```{r}
-# dict_clean <- readRDS(here::here("data", "temp", "pop_data_dict.rds"))
-# dict_1990 <- dict_clean |>
-#   select(variable, description) |>
-#   unnest(description)
-# dict_1990$id <- seq_len(nrow(dict_1990))
-#
-# dict_1990_clean <- dict_1990 |>
-#   filter(!id %in% c(28:32, 37, 38, 44, 50, 53:59))
-#
-# dict_1990_lookup <- dict_1990_clean |>
-#   filter(str_detect(description, "=")) |>
-#   separate(description, sep = " = ", into = c("code", "value")) |>
-#   select(-id) |>
-#   nest(.by = variable)
-#
-# rename_fns <- function(col, val) {
-#   if_else(col == "code", val, paste(val, "c", sep = "_"))
-# }
-#
-# dict_1990_lookup <- mutate(
-#   dict_1990_lookup,
-#   data = purrr::map2(variable,
-#                      data,
-#                      \(x, y) {
-#                        if (x %in% c("race", "origin", "sex")) {
-#                          return(mutate(y, code = as.numeric(code)))
-#                        }
-#                        return(y)
-#                      })
-# )
-#
-# dict_1990_lookup <- mutate(
-#   dict_1990_lookup,
-#   data = purrr::map2(
-#     variable,
-#     data,
-#     \(x, y) {rename_with(y, rename_fns, val = x)}
-#     ) |>
-#     purrr::set_names(variable)
-#   )
+dict_clean <- readRDS(here::here("data", "temp", "pop_data_dict.rds"))
+dict_1990 <- dict_clean |>
+  select(variable, description) |>
+  unnest(description)
+dict_1990$id <- seq_len(nrow(dict_1990))
+
+dict_1990_clean <- dict_1990 |>
+  filter(!id %in% c(28:32, 37, 38, 44, 50, 53:59))
+
+dict_1990_lookup <- dict_1990_clean |>
+  filter(str_detect(description, "=")) |>
+  separate(description, sep = " = ", into = c("code", "value")) |>
+  select(-id) |>
+  nest(.by = variable)
+
+rename_fns <- function(col, val) {
+  if_else(col == "code", val, paste(val, "c", sep = "_"))
+}
+
+dict_1990_lookup <- mutate(
+  dict_1990_lookup,
+  data = purrr::map2(
+    variable,
+    data,
+    \(x, y) {
+      if (x %in% c("race", "origin", "sex")) {
+        return(mutate(y, code = as.numeric(code)))
+      }
+      return(y)
+    }
+  )
+)
+
+dict_1990_lookup <- mutate(
+  dict_1990_lookup,
+  data = purrr::map2(
+    variable,
+    data,
+    \(x, y) {
+      rename_with(y, rename_fns, val = x)
+    }
+  ) |>
+    purrr::set_names(variable)
+)
 ```
 
 ## 1990 - 2020
@@ -208,35 +211,36 @@ Generate the lookup table to create decode values
 
 * Clean
 ```{r}
-# d_top <- read_fst(
-#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.parsed.fst"),
-#   to = 10
-# )
-# 
-# selected_cols <- setdiff(
-#   names(d_top),
-#   c(
-#     "registry_geographic_definition_only",
-#     "state_postal_abbreviation"
-#   )
-# )
-# 
-# d <- read_fst(
-#   here::here("data", "temp", "us.1990_2020.19ages.adjusted.parsed.fst"),
-#   columns = selected_cols,
-#   as.data.table = TRUE
-# )[
-#   year %in% 2000:2020,
-# ]
+d_top <- read_fst(
+  here::here("data", "temp", "us.1990_2020.19ages.adjusted.parsed.fst"),
+  to = 10
+)
+
+selected_cols <- setdiff(
+  names(d_top),
+  c(
+    "registry_geographic_definition_only",
+    "state_postal_abbreviation"
+  )
+)
+
+d <- read_fst(
+  here::here("data", "temp", "us.1990_2020.19ages.adjusted.parsed.fst"),
+  columns = selected_cols,
+  as.data.table = TRUE
+)[
+  year %in% 2000:2020,
+]
 ```
 
 ### aggregate
 ```{r}
 agg_fns <- function(dt, var) {
-  stopifnot(is.data.table(dt))
+  stopifnot(is.data.table(dt), var %in% names(dt))
   dt[,
     list(pop = sum(population, na.rm = TRUE)),
-    by = c("year", "state_fips_code", "county_fips_code", var)] |>
+    by = c("year", "state_fips_code", "county_fips_code", var)
+  ] |>
     merge(dict_1990_lookup$data[[var]], by = var)
 }
 
@@ -262,17 +266,20 @@ d_clean <- d[
   list(total_pop = sum(population)),
   by = c("year", "state_fips_code", "county_fips_code")
 ] |>
-  merge(d_race_wide, by = c("year", "state_fips_code", "county_fips_code"))|>
+  merge(d_race_wide, by = c("year", "state_fips_code", "county_fips_code")) |>
   merge(d_origin_wide, by = c("year", "state_fips_code", "county_fips_code"))
 
-d_clean$id <- paste0(d_clean$state_fips_code, d_clean$county_fips_code)
+d_clean$fips <- paste0(d_clean$state_fips_code, d_clean$county_fips_code)
 
 set(d_clean, j = c("state_fips_code", "county_fips_code"), value = NULL)
-perc <- setdiff(names(d_clean), c("year", "total_pop", "id"))
+perc <- setdiff(names(d_clean), c("year", "total_pop", "fips"))
 perc_name <- paste("perc", perc, sep = "_")
 
-d_clean[, (perc_name) := lapply(.SD, \(x) {round(x * 100 / total_pop, 3)}), .SDcols = perc]
-setkeyv(d_clean, c("year", "id"))
+d_clean[, (perc_name) := lapply(.SD, \(x) {
+  round(x * 100 / total_pop, 3)
+}), .SDcols = perc]
+
 write_fst(d_clean, here::here("data", "temp", "2000_2020_population_by_year_counties.fst"),
-          compress = 100)
+  compress = 100
+)
 ```
