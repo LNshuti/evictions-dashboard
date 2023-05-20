@@ -22,45 +22,118 @@ library(sf)
 d <- read_fst(here::here("data", "temp", "county_court-issued_2000_2018.fst"),
   as.data.table = TRUE
 )
-
+key(d)
 dd <- readxl::read_xlsx(here("data", "county_proprietary_2000_2018_codebook.xlsx"))
-
-# for (i in list.files(here::here("golem", "R"), full.names = TRUE)) { file.edit(i) }
-for (i in list.files(here::here("golem", "R"), full.names = TRUE)) { source(i) }
-
 counties_geojson_shp <- st_read(here::here("data", "temp", "counties_geojson_sf.shp"))
+
+for (i in list.files(here::here("golem", "R"), full.names = TRUE)) {
+  file.edit(i)
+}
+
+for (i in list.files(here::here("golem", "R"), full.names = TRUE)) {
+  source(i)
+}
+```
+
+```{r}
+CD <- CountyData$new(here::here("data", "temp", "county_court-issued_2000_2018.fst"))
+CGEO <- CountyGEO$new(here::here("data", "temp", "counties_geojson_sf.shp"))
+```
+
+```{r}
+CD$get(2000, "AL")
+CD$parse_years(2000:2018)
+CD$parse_states("AL")
+CD$get(2000:2018, "AL")
+```
+
+```{r}
+class(CD$get(2000, "AL", "all"))
+CD$get(2000:2018, "AL", "all")
+
+d[.(2000:2018, "NH"), ]
+
+CD$get(2000:2018, "NH")[, unique(fips)]
+CD$get(2000:2018, "NH")
+
+CGEO$get(CD$get(2016:2018, "NH"))
+CGEO$chloropleth("renting_hh", 10)
+
+maps_l
+
+CGEO$chloropleth(CD$get(2010:2018, "NH"), "perc_white")
+```
+
+```{r}
+CGEO$sf
+library(tmap)
+
+tmap_mode("view")
+
+tm_shape(CGEO$sf) +
+  tm_polygons("renting_hh", palette = "RdYlBu", n = 10, alpha = 0.75) +
+  tm_facets(by = "year", ncol = 3)
+```
+
+```{r}
+leafsync::sync(maps_l)
+maps_l
+
+CD$get(2018, "AL", "all")
+
+
+CGEO$key
+CGEO$query
+CGEO$query
+CGEO$sf
+mapview(list("a" = maps_l[[2]]), zcol = "renting_hh")
+
+counties_geojson_shp
 ```
 
 ```{r}
 d[, unique(state_abbv)]
-d[list(2000), sort(unique(state_abbv)), nomatch = NULL]
-
+d[list(2000, "AL", "Autauga County"), nomatch = NULL]
 microbenchmark::microbenchmark(
-
-  d[list(2000, "AL", "Autauga County"), nomatch = NULL]
+  test$get(2001, "AL", "all"),
+  times = 1
 )
-
-
-m <- hashmap(default = "kekwait")
-m[["b"]] <- 2
-
-m[["a"]]
-r2r::keys(m)
-r2r::
-microbenchmark::microbenchmark(m[["a"]], times = 1)
-microbenchmark::microbenchmark(m[["b"]], times = 1)
 ```
-
 
 ```{r}
 bins <- c(0, 10, 20, 50, 100, 200, 500, 1000, Inf)
 pal <- colorBin("YlOrRd", domain = d$renting_hh, bins = bins)
+counties_geojson_shp
 
-counties_geojson_shp |>
-  inner_join(d[year == 2017, ], by = c("id" = "fips_char")) #|>
+microbenchmark::microbenchmark(
+  inner_join(counties_geojson_shp, d[year == 2017, ], by = "fips"),
+  times = 100
+)
 
-leaflet() %>%
-  addTiles() %>%
+test <-
+  inner_join(counties_geojson_shp, d[state_abbv == "NH" & year %in% c(2000, 2018), ], by = "fips") #|>
+names(test)
+library(ggplot2)
+library(mapview)
+library(leaflet)
+library(plainview)
+library(leafsync)
+
+test[test$year == 2000, "renting_hh"]
+
+test[test$year == 2000][[1]]
+m1 <- mapview(test[test$year == 2000, ], zcol = "renting_hh")
+m2 <- mapview(test[test$year == 2018, ], zcol = "renting_hh")
+
+sync(m1, m2)
+ggplot() +
+  geom_sf(data = test, aes(fill = renting_hh)) +
+  facet_wrap(~year)
+
+test$renting_hh
+test |>
+  leaflet() |>
+  addTiles() |>
   addPolygons(
     stroke = FALSE,
     smoothFactor = 0.3,
