@@ -19,7 +19,7 @@ library(sf)
 ```
 
 ```{r}
-d <- read_fst(here::here("data", "temp", "county_court-issued_2000_2018.fst"),
+d <- read_fst(here::here("data", "county_court-issued_2000_2018.fst"),
   as.data.table = TRUE
 )
 key(d)

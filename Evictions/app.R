@@ -71,8 +71,8 @@ server <- function(input, output, session) {
 }
 
 # Load the latest evictions data (replace with the appropriate data source)
-evictions_data <-
-  read.csv("/data/county_court-issued_2000_2018.csv")
+evictions_data <- here::here(data.table::fread("data/tract_proprietary_valid_2000_2018.csv")) %>% 
+  as_tibble()
 
 # Run the Shiny application
 shinyApp(ui = ui, server = server)
