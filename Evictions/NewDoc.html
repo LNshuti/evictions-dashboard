@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.2.475">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>newdoc</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1.6em;
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="NewDoc_files/libs/clipboard/clipboard.min.js"></script>
+<script src="NewDoc_files/libs/quarto-html/quarto.js"></script>
+<script src="NewDoc_files/libs/quarto-html/popper.min.js"></script>
+<script src="NewDoc_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="NewDoc_files/libs/quarto-html/anchor.min.js"></script>
+<link href="NewDoc_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="NewDoc_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="NewDoc_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="NewDoc_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="NewDoc_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+
+
+<p>---</p>
+<p>title: “Tutorial: Porting Blueprint to Shiny”</p>
+<p>output: rmarkdown::html_vignette</p>
+<p>vignette: &gt;</p>
+<p>%\VignetteIndexEntry{Tutorial: Porting Blueprint to Shiny}</p>
+<p>%\VignetteEngine{knitr::rmarkdown}</p>
+<p>%\VignetteEncoding{UTF-8}</p>
+<p>---</p>
+<p>### Introduction</p>
+<p>[Blueprint](https://blueprintjs.com/)</p>
+<p>is a [React](https://reactjs.org/)-based UI library from Palantir.</p>
+<p>It provides a rich set of components for building web interfaces</p>
+<p>and it is similar in concept to</p>
+<p>Microsoft’s [Fluent UI](https://developer.microsoft.com/en-us/fluentui#/)</p>
+<p>or Google’s [MUI](https://mui.com/core/).</p>
+<p>In this tutorial we will (begin to) create a `blueprint` R package,</p>
+<p>which will make it possible to use Blueprint in R/Shiny</p>
+<p>akin to how [shiny.fluent](https://github.com/Appsilon/shiny.fluent) does it for Fluent UI.</p>
+<p>It should give you enough understanding of shiny.react</p>
+<p>to allow you to use other React libraries in your projects,</p>
+<p>either by creating “wrapper” R packages or directly in you Shiny app.</p>
+<p>This tutorial is aimed at advanced users</p>
+<p>who feel comfortable with both Shiny and React.</p>
+<p>You will need R and [Node.js](https://nodejs.org/en/) installed.</p>
+<p>### Creating the package</p>
+<p>To start off we create a new package called blueprint.</p>
+<p>The `js` directory will contain the Node.js toolchain</p>
+<p>and JavaScript sources which will be compiled into a single file.</p>
+<p>Only that file will be needed to use the package,</p>
+<p>so we add `js` to `.Rbuildignore` to decrease the size of our package.</p>
+<p>```r</p>
+<p>usethis::create_package(“blueprint”)</p>
+<p>usethis::use_build_ignore(“js”)</p>
+<p>```</p>
+<p>It is also a good idea to list the dependencies in the `DESCRIPTION` file:</p>
+<p>```</p>
+<p>Imports:</p>
+<p>htmltools,</p>
+<p>shiny,</p>
+<p>shiny.react</p>
+<p>```</p>
+<p>### The R interface</p>
+<p>In React, a [component](https://reactjs.org/docs/glossary.html#components)</p>
+<p>is a function which takes [props](https://reactjs.org/docs/glossary.html#props)</p>
+<p>and returns an [element](https://reactjs.org/docs/glossary.html#elements).</p>
+<p>These concepts map to R directly.</p>
+<p>In R, elements are created with `shiny.react::reactElement(module, name, props)`.</p>
+<p>In the browser, shiny.react will create the element by calling</p>
+<p>`React.createElement(jsmodule[module][name], props)`.</p>
+<p>It is our task to ensure that `jsmodule[module][name]` yields the right component.</p>
+<p>To accomplish it, we will later create a `blueprint.js` script</p>
+<p>which will set up the `jsmodule` global appropriately.</p>
+<p>To free the users of our package of having to include this script manually,</p>
+<p>we will use an HTML dependency.</p>
+<p>In `R/components.R` let’s define:</p>
+<p>```r</p>
+<p>blueprintDependency &lt;- function() {</p>
+<p>htmltools::htmlDependency(</p>
+<p>name = “blueprint”,</p>
+<p>version = “0.1.0”,</p>
+<p>package = “blueprint”,</p>
+<p>src = “www”,</p>
+<p>script = “blueprint.js”</p>
+<p>)</p>
+<p>}</p>
+<p>```</p>
+<p>To define components succinctly, let’s create a helper.</p>
+<p>Remember - components are functions which take props and return elements:</p>
+<p>```r</p>
+<p>component &lt;- function(name) {</p>
+<p>function(…) shiny.react::reactElement(</p>
+<p>module = “@blueprintjs/core”,</p>
+<p>name = name,</p>
+<p>props = shiny.react::asProps(…),</p>
+<p>deps = blueprintDependency()</p>
+<p>)</p>
+<p>}</p>
+<p>```</p>
+<p>We can now add Blueprint components to our package easily!</p>
+<p>Let’s try a [Switch](https://blueprintjs.com/docs/#core/components/switch)</p>
+<p>and a [ProgressBar](https://blueprintjs.com/docs/#core/components/progress-bar) for starters.</p>
+<p>```r</p>
+<p>#’ @export</p>
+<p>ProgressBar &lt;- component(“ProgressBar”)</p>
+<p>#’ @export</p>
+<p>Switch &lt;- component(“Switch”)</p>
+<p>```</p>
+<p>### Adding Blueprint</p>
+<p>In the `js` directory we use `yarn` to add the Blueprint library.</p>
+<p>The [documentation](https://blueprintjs.com/docs/#blueprint.quick-start)</p>
+<p>also suggests adding `react` and `react-dom`,</p>
+<p>but we skip them as they are already provided by shiny.react.</p>
+<p>```sh</p>
+<p>yarn init --yes</p>
+<p>yarn add @blueprintjs/core</p>
+<p>```</p>
+<p>We will use a bundler to generate the `blueprint.js` script</p>
+<p>from the following `js/src/index.js` file:</p>
+<p>```js</p>
+<p>const Blueprint = require(‘@blueprintjs/core’);</p>
+<p>require(‘@blueprintjs/core/lib/css/blueprint.css’);</p>
+<p>window.jsmodule = {</p>
+<p>…window.jsmodule,</p>
+<p>‘@blueprintjs/core’: Blueprint</p>
+<p>};</p>
+<p>```</p>
+<p>This script will make the Blueprint library</p>
+<p>available as `jsmodule[@blueprintjs/core]` on the browser.</p>
+<p>It will also load the necessary CSS.</p>
+<p>### Bundling</p>
+<p>We will use [webpack](https://webpack.js.org/) to build the `blueprint.js` file.</p>
+<p>There is a handy [online tool](https://createapp.dev/webpack)</p>
+<p>which we can use to generate a configuration for that webpack.</p>
+<p>Let’s just pick CSS from the Styling section and copy the the script to `js/webpack.config.js`.</p>
+<p>We also add dev dependencies as suggested by the tool:</p>
+<p>```sh</p>
+<p>yarn add --dev webpack webpack-cli css-loader style-loader</p>
+<p>```</p>
+<p>Now let’s tweak the config a bit.</p>
+<p>We change the output to `inst/www/blueprint.js`:</p>
+<p>```js</p>
+<p>output: {</p>
+<p>path: path.join(__dirname, ‘..’, ‘inst’, ‘www’),</p>
+<p>filename: ‘blueprint.js’</p>
+<p>}</p>
+<p>```</p>
+<p>We add [`externals`](https://webpack.js.org/configuration/externals/)</p>
+<p>to let webpack know where to look for modules provided by shiny.react:</p>
+<p>```js</p>
+<p>externals: {</p>
+<p>‘react’: ‘jsmodule[“react”]’,</p>
+<p>‘react-dom’: ‘jsmodule[“react-dom”]’,</p>
+<p>‘@/shiny.react’: ‘jsmodule[“@/shiny.react”]’</p>
+<p>}</p>
+<p>```</p>
+<p>Lastly, we need a little hack for a [problem](https://github.com/palantir/blueprint/issues/4393)</p>
+<p>present in Blueprint as of writing this:</p>
+<p>```js</p>
+<p>plugins: [</p>
+<p>new webpack.DefinePlugin({ ‘process.env’: ‘{}’ })</p>
+<p>]</p>
+<p>```</p>
+<p>Our final `js/webpack.config.js` looks as follows:</p>
+<p>```js</p>
+<p>const webpack = require(‘webpack’);</p>
+<p>const path = require(‘path’);</p>
+<p>const config = {</p>
+<p>entry: ‘./src/index.js’,</p>
+<p>output: {</p>
+<p>path: path.join(__dirname, ‘..’, ‘inst’, ‘www’),</p>
+<p>filename: ‘blueprint.js’</p>
+<p>},</p>
+<p>module: {</p>
+<p>rules: [</p>
+<p>{</p>
+<p>test: /\.css$/,</p>
+<p>use: [</p>
+<p>‘style-loader’,</p>
+<p>‘css-loader’</p>
+<p>]</p>
+<p>}</p>
+<p>]</p>
+<p>},</p>
+<p>externals: {</p>
+<p>‘react’: ‘jsmodule[“react”]’,</p>
+<p>‘react-dom’: ‘jsmodule[“react-dom”]’,</p>
+<p>‘@/shiny.react’: ‘jsmodule[“@/shiny.react”]’</p>
+<p>},</p>
+<p>plugins: [</p>
+<p>new webpack.DefinePlugin({ ‘process.env’: ‘{}’ })</p>
+<p>]</p>
+<p>};</p>
+<p>module.exports = config;</p>
+<p>```</p>
+<p>### Building the package</p>
+<p>We are ready to build our package!</p>
+<p>First of all, we run webpack in the `js` directory:</p>
+<p>```sh</p>
+<p>yarn webpack</p>
+<p>```</p>
+<p>This will generate the `inst/www/webpack.js` bundle.</p>
+<p>We should also generate the NAMESPACE file:</p>
+<p>```r</p>
+<p>devtools::document()</p>
+<p>```</p>
+<p>We can now install the package directly with `devtools::install()` and try it out!</p>
+<p>### Using the package</p>
+<p>Let’s try a simple app first to test our components:</p>
+<p>```r</p>
+<p>library(shiny)</p>
+<p>library(shiny.react)</p>
+<p>library(blueprint)</p>
+<p>shinyApp(</p>
+<p>ui = tagList(</p>
+<p>Switch(label = “Animate”),</p>
+<p>ProgressBar()</p>
+<p>),</p>
+<p>server = function(input, output) {}</p>
+<p>)</p>
+<p>```</p>
+<p>Cool! Let’s try something more advanced:</p>
+<p>```r</p>
+<p>withDefault &lt;- function(x, default) {</p>
+<p>if (is.null(x)) default</p>
+<p>else x</p>
+<p>}</p>
+<p>shinyApp(</p>
+<p>ui = tagList(</p>
+<p>Switch(</p>
+<p>onChange = JS(“(event) =&gt; Shiny.setInputValue(‘animate’, event.target.checked)”),</p>
+<p>defaultChecked = TRUE,</p>
+<p>label = “Animate”</p>
+<p>),</p>
+<p>reactOutput(“progress”)</p>
+<p>),</p>
+<p>server = function(input, output) {</p>
+<p>output$progress &lt;- renderReact({</p>
+<p>ProgressBar(animate = withDefault(input$animate, TRUE))</p>
+<p>})</p>
+<p>}</p>
+<p>)</p>
+<p>```</p>
+<p>### Creating input wrappers</p>
+<p>Even simple components can be cumbersome to use in Shiny,</p>
+<p>as evident in the last example.</p>
+<p>It is a good idea to create `.shinyInput` wrappers to simplify the life of your users.</p>
+<p>We change our `js/src/index.js` to the following:</p>
+<p>```js</p>
+<p>const Blueprint = require(‘@blueprintjs/core’);</p>
+<p>const { InputAdapter } = require(‘@/shiny.react’)</p>
+<p>require(‘@blueprintjs/core/lib/css/blueprint.css’);</p>
+<p>const Switch = InputAdapter(Blueprint.Switch, (value, setValue) =&gt; ({</p>
+<p>checked: value,</p>
+<p>onChange: (event) =&gt; setValue(event.target.checked),</p>
+<p>}));</p>
+<p>window.jsmodule = {</p>
+<p>…window.jsmodule,</p>
+<p>‘@blueprintjs/core’: require(‘@blueprintjs/core’),</p>
+<p>‘@/blueprint’: { Switch }</p>
+<p>};</p>
+<p>```</p>
+<p>We also add these lines to `R/components.R`:</p>
+<p>```r</p>
+<p>input &lt;- function(name, defaultValue) {</p>
+<p>function(inputId, …, value = defaultValue) shiny.react::reactElement(</p>
+<p>module = “@/blueprint”,</p>
+<p>name = name,</p>
+<p>props = shiny.react::asProps(inputId = inputId, …, value = value),</p>
+<p>deps = blueprintDependency()</p>
+<p>)</p>
+<p>}</p>
+<p>#’ @export</p>
+<p>Switch.shinyInput &lt;- input(“Switch”, FALSE)</p>
+<p>```</p>
+<p>After rebuilding and reinstalling the package</p>
+<p>we can now rewrite the last Shiny app example as:</p>
+<p>```r</p>
+<p>shinyApp(</p>
+<p>ui = tagList(</p>
+<p>Switch.shinyInput(</p>
+<p>inputId = “animate”,</p>
+<p>value = TRUE,</p>
+<p>label = “Animate”</p>
+<p>),</p>
+<p>reactOutput(“progress”)</p>
+<p>),</p>
+<p>server = function(input, output) {</p>
+<p>output$progress &lt;- renderReact({</p>
+<p>ProgressBar(animate = input$animate)</p>
+<p>})</p>
+<p>}</p>
+<p>)</p>
+<p>```</p>
+<p>### Notes</p>
+<p>The module name passed to `shiny.react::createElement()` can be arbitrary,</p>
+<p>but the following convention is recommended:</p>
+<p>* For modules coming directly from [npm](https://www.npmjs.com/),</p>
+<p>use the npm name, e.g.&nbsp;[`@blueprintjs/core`](https://www.npmjs.com/package/@blueprintjs/core).</p>
+<p>* For modules with custom code,</p>
+<p>use the R package name with `@/` prefix, e.g.&nbsp;`@/blueprint`.</p>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    target: function(trigger) {
+      return trigger.previousElementSibling;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
