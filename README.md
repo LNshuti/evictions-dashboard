@@ -18,7 +18,7 @@ Each page should include elements that help the user navigate the dashboard, suc
 
 #### Tableau Dashboard 
 
-![image](https://github.com/LNshuti/evictions-dashboard/assets/13305262/e057bcda-1165-4a48-945b-230c7025efdd)
+![image](https://github.com/LNshuti/evictions-dashboard/assets/13305262/a037e739-5d4d-4b5b-9042-a59663d2f369)
 
 [Tableau Map Tennessee](https://prod-useast-b.online.tableau.com/t/evictionstn/views/TN-Quarterly-Evictions/EvictionsDashboard)
 
