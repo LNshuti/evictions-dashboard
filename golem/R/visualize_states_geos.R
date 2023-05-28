@@ -3,6 +3,9 @@ library(sf)
 library(here)
 library(tidyverse)
 
+source(here("golem/R/map-theme.R"))
+source(here("golem/R/shared-objects.R"))
+
 # Retrieve the environment variable keys
 my_access_key <- Sys.getenv("AWS_ACCESS_KEY_ID")
 my_secret_key <- Sys.getenv("AWS_SECRET_ACCESS_KEY")
@@ -26,6 +29,15 @@ s3_other <- paws::s3(
 # Load shape files
 sf_state <- read_sf(here("golem/R/output/state/01_state-shape-file.shp")) %>% 
   st_transform(crs = 4326) 
+
+
+sf_state %>% 
+  ggplot() + 
+  geom_sf(data = sf_state, aes(fill = stusps)) + 
+  remove_all_axes
+  scale_y_continuous(breaks = 34:36)
+
+
 
 library(maps)
 usa <- st_as_sf(map('usa', plot = FALSE, fill = TRUE))
