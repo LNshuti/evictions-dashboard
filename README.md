@@ -2,12 +2,6 @@
 
 Number of evictions by county and demographics variables. 
   
-  
-##### II. Map visualizing evictions by county, a timeline visualizing changes in eviction rates over time, and detailed breakdowns by demographic. 
-
-
-Each page should include elements that help the user navigate the dashboard, such as the page titles and filter options that allow users to customize their view of the data.
-
 #### Tableau Dashboard 
 
 ![image](https://github.com/LNshuti/evictions-dashboard/assets/13305262/a037e739-5d4d-4b5b-9042-a59663d2f369)
