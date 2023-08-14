@@ -39,7 +39,7 @@ if response.status_code == 200:
     plt.plot(pivot_df)
     plt.xlabel("County (geoid)")
     plt.ylabel("Eviction Rate")
-    plt.title("Eviction Rates by County (2015-2021)")
+    plt.title("Eviction Rates by County")
     plt.legend(pivot_df.columns, title="Year", bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.show()
 
