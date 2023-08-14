@@ -1,24 +1,25 @@
 #' ---
 #' output: github_document
 #' ---
-
 suppressWarnings(suppressMessages(source(here::here("golem/R/manifest.R"))))
 library(gganimate)
 library(magick)
 source(here("golem/R/map-theme.R"))
 source(here("golem/R/shared-objects.R"))
 
-hhi_cz <-
-  read_rds(here("golem/output/market-comparisons/01_HHI_genacute_cz.rds")) %>% 
-  as_tibble()
+# hhi_cz <-
+#   read_rds(here("golem/output/market-comparisons/01_HHI_genacute_cz.rds")) %>% 
+#   as_tibble()
+# 
+# hhi_cd <- read_rds(here("golem/output/market-comparisons/01_HHI_genacute_cd.rds")) %>% 
+#   as_tibble()
+# 
+# sf_cz <- read_sf(here("golem/output/tidy-mapping-files/commuting-zone/01_commuting-zone-shape-file.shp")) %>% 
+#   st_transform(crs = 4326)
 
-hhi_cd <- read_rds(here("golem/output/market-comparisons/01_HHI_genacute_cd.rds")) %>% 
-  as_tibble()
-
-sf_cz <- read_sf(here("golem/output/tidy-mapping-files/commuting-zone/01_commuting-zone-shape-file.shp")) %>% 
-  st_transform(crs = 4326)
 sf_state <- read_sf(here("golem/output/tidy-mapping-files/state/01_state-shape-file.shp")) %>% 
   st_transform(crs = 4326)
+
 fips_to_state <- read_rds(here("golem/output/geographic-crosswalks/01_xw_county-to-fips.rds")) %>% 
   mutate(statefp = str_sub(fips_code,1,2)) %>% 
   select(statefp,state) %>% unique()
