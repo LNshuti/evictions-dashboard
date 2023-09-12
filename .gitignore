@@ -184,3 +184,5 @@ rsconnect/
 data/temp/us.1990_2020*
 
 *.icloud
+
+/golem
