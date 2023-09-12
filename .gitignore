@@ -182,3 +182,5 @@ rsconnect/
 
 # Raw population files
 data/temp/us.1990_2020*
+
+*.icloud
