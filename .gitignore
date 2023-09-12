@@ -184,5 +184,9 @@ rsconnect/
 data/temp/us.1990_2020*
 
 *.icloud
+*.csv
+*.dbf
+*.rds
+*.shp
 
 /golem
