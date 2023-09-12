@@ -13,10 +13,10 @@ options("gargoyle.talkative" = TRUE)
 
 # file.edit(here::here("golem", "R", "CountyData_server.R"))
 
-for (i in list.files(here::here("golem", "R"), full.names = TRUE)) {
-  source(i)
-  # file.edit(i)
-}
+# for (i in list.files(here::here("golem", "R"), full.names = TRUE)) {
+#   source(i)
+#   # file.edit(i)
+# }
 
 chloroplethApp <- function() {
   CD <- CountyData$new(here::here("data", "temp", "county_court-issued_2000_2018.fst"))
