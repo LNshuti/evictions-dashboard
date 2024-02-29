@@ -1,0 +1,36 @@
+name: Fetch latest data, commit, then build and deploy with Datasette
+
+on:
+  repository_dispatch:
+  schedule:
+    - cron:  '0 0,12 * * *'
+
+jobs:
+  scheduled:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      name: Check out repo
+    - name: Set up Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.8
+    - uses: actions/cache@v1
+      name: Configure pip caching
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Fetch, update and commit Evictions data
+      run: . update_and_commit_all.sh
+    - name: Build evictions.db database
+      run: python build_database.py
+    - name: Set variables to decide if we should deploy
+      id: decide_variables
+      run: |-
+        echo "##[set-output name=latest;]$(datasette inspect evictions.db | jq 'evictions.hash' -r)"
