@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 fixtures.db
+fly.toml
 
 # C extensions
 *.so
