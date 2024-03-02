@@ -1,6 +1,9 @@
 # Evictions Dashboard
 
 Number of evictions by county and demographics variables. 
+
+#### Deployed Datasette with Fly.io 
+Link to App: [Evictions Dashboard](https://evictions-dashboard.fly.dev/)
   
 #### Tableau Dashboard 
 
